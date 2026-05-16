@@ -1,7 +1,7 @@
 # Building an AI-Powered Job Search System From Scratch
 **Stack (Phase 1):** React · Vite · Express · Claude · Apify (LinkedIn + Indeed)
 **Stack (Phase 2):** n8n · Claude Haiku + Sonnet · Apify · HTML/CSS · Gotenberg · Google Drive · Gmail · Supabase
-**Published:** May 2026
+**Published:** April 2026
 
 ---
 
