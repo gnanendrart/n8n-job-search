@@ -1,0 +1,6 @@
+*Personal*
+*_personal*
+*.env
+.env.*
+.DS_Store
+node_modules/
