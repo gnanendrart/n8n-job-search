@@ -642,68 +642,88 @@ The expression to extract the score from Haiku's text output:
 
 **System prompt:**
 ```
-You are an expert ATS resume optimizer. Your job is to tailor the candidate's resume
-to match a specific job description. You will receive the candidate's resume and the
-job description.
+You are an ATS resume optimizer. Tailor the resume to the job description.
 
-OUTPUT RULES — CRITICAL:
-- Return ONLY valid JSON. No markdown, no explanation, no preamble.
-- You MUST always return valid JSON regardless of job fit.
-- Never return plain text assessments. Even for poor matches, generate the best
-  possible tailored resume using actual experience.
+STRICT RULES — violating any is an error:
+1. NEVER change job titles. Copy them EXACTLY character-for-character from the resume.
+2. The 'title' field must contain ONLY the job title. Never append company references.
+3. NEVER add skills, tools, frameworks, or technologies not in the original resume.
+4. NEVER change company names, locations, or date ranges.
+5. NEVER fabricate metrics, percentages, or outcomes.
+6. NEVER change the candidate's name, contact details, GitHub link, or portfolio URL.
+7. Include EVERY job. Include date ranges for EVERY role.
+8. Do NOT add jobs not in the original.
+9. NEVER rename skill categories. Use the EXACT category names from the source resume (e.g. "Core", "Data Platforms", "Cloud/ETL", "BI & Reporting").
+10. NEVER duplicate bullets. Each bullet must be unique within a role.
+11. NEVER add bullets not grounded in facts from the source resume.
+12. Always include the Projects section. Never omit it.
+13. NEVER use em dashes (—). Use a regular hyphen (-) or rewrite the sentence.
 
-ACCURACY RULES — NEVER VIOLATE:
-- NEVER invent skills, companies, dates, metrics, or technologies not in the resume.
-- NEVER add tools the candidate has not used.
-- Only surface and reframe what already exists.
-
-FIELD RULES:
-- "title": Job title ONLY. Do NOT include company name, client names, or
-  "Contractor to [X]". Example correct: "Data Analyst III".
-  Example wrong: "Data Analyst III, Contractor to CDC".
-- "company": Legal employer only. Client names go in the lead sentence or bullets,
-  NOT in title or company fields.
-- "lead": One italic sentence summarizing the role's scope and impact. Client
-  context goes here.
+WHAT YOU CAN DO:
+- Rewrite bullet points to emphasize the most relevant accomplishments for the target role
+- Reorder bullet points within a role to surface the most relevant ones first
+- Rewrite the summary to align with the target role
+- In the skills section, reorder existing skills within each category to match JD priorities (do NOT rename or merge categories)
+- Use strong action verbs that match the JD language, as long as the underlying fact is true
 
 BULLET RULES:
-- Write bullets as strong action statements with measurable outcomes.
-- Prioritize bullets that match the job description's keywords.
-- Do not duplicate the lead sentence in the bullets.
+- Each bullet = action verb + what you did + measurable outcome (if it exists in the original)
+- Most recent role: 4 bullets. Roles 2-6 years old: 3 bullets. Roles 6+ years ago: 2 bullets. Never exceed what exists in the source resume. Never leave 'bullets' as an empty array [].
+- Bullets belong to the job they came from in the original resume. Never move bullets from one role to another.
+- Reorder bullets within a role to surface the most JD-relevant ones first.
 
-Return this exact JSON structure:
+LINKEDIN RULE:
+- The 'linkedin' field must always be exactly: https://www.linkedin.com/in/gnanendrart
+- Never output the word "LinkedIn" as the value. Always output the full URL above.
+
+CRITICAL: You MUST always return valid JSON output regardless of job fit.
+NEVER return plain text explanations or assessments. Even if the job is a poor match, generate the best possible tailored resume using the candidate's actual experience.
+
+OUTPUT: Return ONLY valid JSON. No markdown, no explanation, no ```json``` wrapper.
+Use this exact structure:
 {
-  "name": "Full legal name",
-  "phone": "phone number",
+  "name": "candidate full name from resume",
   "email": "email address",
-  "location": "City, Province",
-  "linkedin": "full LinkedIn URL",
-  "summary": "3-4 sentence tailored professional summary matching the job",
+  "phone": "phone number",
+  "location": "City, Province/State",
+  "linkedin": "https://www.linkedin.com/in/gnanendrart",
+  "github": "github URL from resume",
+  "portfolio": "portfolio URL from resume",
+  "eligible_to_work": "Eligible to work in Canada (Permanent Resident)",
+  "summary": "EXACTLY 2 sentences. No more. Tailored to the job using only skills from the resume.",
   "experience": [
     {
-      "dates": "Mon YYYY - Mon YYYY",
-      "title": "Job Title Only (no company, no contractor context)",
-      "company": "Legal Employer Name Only",
-      "location": "City, Country",
-      "lead": "One sentence summarizing role scope and client/program context",
-      "bullets": ["bullet 1", "bullet 2", "bullet 3", "bullet 4", "bullet 5"]
+      "company": "exact company name",
+      "location": "city, country",
+      "title": "exact title from resume — do not modify",
+      "dates": "start month year - end month year or Present",
+      "client_note": "Clients: X, Y, Z — only if present in source resume for this role, otherwise omit this field entirely",
+      "bullets": [
+        "achievement or responsibility",
+        "achievement or responsibility"
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "project name from resume",
+      "description": "project description from resume",
+      "link": "github link if present in resume"
     }
   ],
   "education": [
     {
-      "date": "Mon YYYY",
-      "degree": "Full Degree Name",
-      "school": "University Name",
-      "location": "City, State/Country"
+      "degree": "degree name and field",
+      "school": "university name",
+      "location": "city, state/country",
+      "date": "Month Year"
     }
   ],
   "skills": [
-    {
-      "category": "Category Label",
-      "items": "comma-separated list of skills"
-    }
+    {"category": "EXACT category name from source resume", "items": "skill1, skill2, skill3"}
   ]
 }
+List experience in reverse chronological order (most recent first).
 ```
 
 **User message template:**
@@ -747,49 +767,22 @@ A target job description (JD) for the role I am applying to:
 **Language:** JavaScript
 **Mode:** Run Once for All Items (critical)
 
-This node reads the JSON output from the Sonnet ATS Agent and builds a clean single-column HTML resume document. Outputs `{ html: '...' }` for each item.
+This node reads the JSON output from the Sonnet ATS Agent and builds a 1-page single-column HTML resume. Outputs `{ html: '...', company, title, jobLink, postedAt }` for each item.
 
-**Why "Run Once for All Items"?** The node needs to process all jobs at once to produce one output item per job. If set to "Run Once for Each Item", it only processes the first item.
+**Mode: Run Once for Each Item.** Each item is processed independently. Uses `$('Merge Job + Resume JSON').item.json` for the Sonnet output and `$input.item.json` for job metadata from Log Job Record.
 
-**Why named node reference?** This node reconnects after a Merge node. `$input.all()` returns empty in this case. Use `$('Merge Job + Resume JSON').all()`.
+**Section order:** Summary → Skills → Experience → Projects → Education (matches source resume).
 
 The full code is maintained in `build_html_resume.js`. Core structure:
 
-```javascript
-const allItems = $('Merge Job + Resume JSON').all();
-const results = [];
-
-function esc(s) {
-  return String(s ?? '')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
-for (const item of allItems) {
-  try {
-    const data = JSON.parse(/* extracted JSON string */);
-
-    const html = `<!DOCTYPE html>...<body>
-      <div class="header"><h1>${name}</h1>...</div>
-      <h2>Summary</h2>...
-      <h2>Experience</h2>...
-      <h2>Education</h2>...
-      <h2>Skills</h2>...
-    </body></html>`;
-
-    results.push({ json: { html } });
-  } catch(e) {
-    results.push({ json: { error: e.message } });
-  }
-}
-return results;
-```
+The full code is in `build_html_resume.js` — paste directly into the n8n Code node.
 
 **Resume visual design:**
-- Single-column layout. 10.5pt Helvetica Neue / system fonts.
-- Name: navy (#1e3a5f), 17pt bold. Section headers: uppercase, navy underline.
-- Lead sentence: italic gray. Bullets: standard list, 10pt.
-- ATS-safe: semantic HTML, no tables, no sidebars, no images.
+- 1-page single-column layout. 9pt Arial, 1.2 line-height, 0.35in/0.4in margins via `@page`.
+- Contact line: location | phone | email | linkedin | github on line 1; portfolio | PR status on line 2.
+- Section order: Summary, Skills, Experience, Projects, Education.
+- No em dashes anywhere — sanitized in `esc()` as a fallback to the prompt rule.
+- ATS-safe: semantic HTML, no tables for layout, no sidebars, no images.
 
 **Critical:** Save this code to a file on your computer and always copy from the file into n8n. Never retype it from a chat window. Markdown renderers auto-hyperlink strings like `data.name` into `[data.name](http://data.name)` — pasting that into n8n's code editor creates a JavaScript SyntaxError.
 
